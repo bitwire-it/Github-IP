@@ -5,22 +5,23 @@ on:
   schedule:
     - cron: '0 0 * * *'
 
+permissions:
+  contents: write
+
 jobs:
   get_and_commit_ips:
     runs-on: ubuntu-latest
     
-    permissions:
-      contents: write 
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-        
+
       - name: Fetch and Filter GitHub Meta IPs
-        id: ip_filter
         shell: bash
         run: |
-          IP_LIST=$(curl -s "https://api.github.com/meta" | jq -r '
+          # Fetch data, process with jq, and write directly to the file
+          # We use curl -fsSL to fail on error and follow redirects
+          curl -fsSL "https://api.github.com/meta" | jq -r '
             . | 
             {
               hooks: .hooks, 
@@ -37,32 +38,14 @@ jobs:
             sort |
             unique |
             .[]
-          ')
+          ' > github_ip_list.txt
           
-          echo "ip_list<<EOF" >> $GITHUB_OUTPUT
-          echo "$IP_LIST" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Save IPs to File
-        run: |
-          rm github_ip_list.txt
-          echo "${{ steps.ip_filter.outputs.ip_list }}" > github_ip_list.txt
-          echo "IP list saved to github_ip_list.txt"
+          # Debug output to verify content length in logs
+          echo "Generated IP list with $(wc -l < github_ip_list.txt) entries."
 
       - name: Commit and Push Changes
-        run: |
-          git config --global user.name "Rush-er"
-          git config --global user.email "stoccomatis7@gmail.com"
-          git add github_ip_list.txt
-          
-          # Check if there are changes to commit
-          if ! git diff-index --quiet HEAD; then
-            echo "Changes detected. Committing..."
-            git commit -m "Automated update of GitHub IP list"
-            
-            # FORCE the push to the correct branch (e.g., main)
-            # This fixes the "Detached HEAD" issue
-            git push origin HEAD:refs/heads/main
-          else
-            echo "No changes to github_ip_list.txt. Nothing to commit."
-          fi
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Automated update of GitHub IP list
+          file_pattern: github_ip_list.txt
+          # The action automatically handles "No changes to commit" scenarios
