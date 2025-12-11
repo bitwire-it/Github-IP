@@ -57,7 +57,8 @@ jobs:
           if ! git diff-index --quiet HEAD; then
             echo "Changes detected. Committing and pushing..."
             git commit -m "Automated update of GitHub IP list"
-            git push
+            # Explicitly push HEAD to the branch that triggered the workflow
+            git push origin HEAD:${{ github.ref_name }}
           else
             echo "No changes to github_ip_list.txt. Nothing to commit."
           fi
