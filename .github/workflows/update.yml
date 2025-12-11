@@ -45,6 +45,7 @@ jobs:
 
       - name: Save IPs to File
         run: |
+          rm github_ip_list.txt
           echo "${{ steps.ip_filter.outputs.ip_list }}" > github_ip_list.txt
           echo "IP list saved to github_ip_list.txt"
 
