@@ -55,11 +55,14 @@ jobs:
           git config --global user.email "stoccomatis7@gmail.com"
           git add github_ip_list.txt
           
+          # Check if there are changes to commit
           if ! git diff-index --quiet HEAD; then
-            echo "Changes detected. Committing and pushing..."
+            echo "Changes detected. Committing..."
             git commit -m "Automated update of GitHub IP list"
-            # Explicitly push HEAD to the branch that triggered the workflow
-            git push origin HEAD:${{ github.ref_name }}
+            
+            # FORCE the push to the correct branch (e.g., main)
+            # This fixes the "Detached HEAD" issue
+            git push origin HEAD:refs/heads/main
           else
             echo "No changes to github_ip_list.txt. Nothing to commit."
           fi
