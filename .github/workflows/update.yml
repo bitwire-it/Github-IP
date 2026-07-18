@@ -3,7 +3,7 @@ name: Get and Save GitHub IPs
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 * * * *'
 
 permissions:
   contents: write
@@ -11,7 +11,7 @@ permissions:
 jobs:
   get_and_commit_ips:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -45,27 +45,34 @@ jobs:
           EOF
 
           # 2. Fetch data, process with jq, and pipe to the Python script
-          curl -fsSL "https://api.github.com/meta" | jq -r '
-            . | 
-            {
-              hooks: .hooks, 
-              web: .web, 
-              api: .api, 
-              git: .git, 
-              github_enterprise_importer: .github_enterprise_importer,
-              packages: .packages,
-              pages: .pages,
-              importer: .importer
-            } |
+          # Fields may be missing or null in the API response, so keep only string
+          # entries that look like IPv4 addresses/CIDRs before filtering.
+          curl -fsSL --retry 3 --retry-delay 5 "https://api.github.com/meta" | jq -r '
+            [
+              .hooks,
+              .web,
+              .api,
+              .git,
+              .github_enterprise_importer,
+              .packages,
+              .pages,
+              .importer
+            ] |
             flatten |
-            map(select(. | test("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}(\\/\\d{1,2})?$"))) | 
+            map(select(type == "string" and test("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}(/\\d{1,2})?$"))) |
             unique |
             .[]
           ' | python3 collapse_ips.py > github_ip_list.txt
-          
+
           # 3. Clean up script
           rm collapse_ips.py
-          
+
+          # 4. Sanity check: never commit an empty list
+          if [ ! -s github_ip_list.txt ]; then
+            echo "::error::Generated IP list is empty, refusing to commit."
+            exit 1
+          fi
+
           # Debug output to verify content length in logs
           echo "Generated IP list with $(wc -l < github_ip_list.txt) entries."
 
